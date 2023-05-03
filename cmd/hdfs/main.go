@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/colinmarc/hdfs/v2"
-	"github.com/colinmarc/hdfs/v2/hadoopconf"
+	"github.com/andreasolla/hdfs/v2"
+	"github.com/andreasolla/hdfs/v2/hadoopconf"
 	"github.com/pborman/getopt"
 )
 
