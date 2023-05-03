@@ -38,6 +38,8 @@ func (c *Client) Open(name string) (*FileReader, error) {
 		return nil, &os.PathError{"open", name, interpretException(err)}
 	}
 
+	fmt.Println("Open", name, info)
+
 	return &FileReader{
 		client: c,
 		name:   name,
