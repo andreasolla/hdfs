@@ -396,6 +396,24 @@ func (f *FileReader) Close() error {
 	return nil
 }
 
+func (f *FileReader) GetBlocks() ([]*hdfs.LocatedBlockProto, error) {
+	req := &hdfs.GetBlockLocationsRequestProto{
+		Src:    proto.String(f.name),
+		Offset: proto.Uint64(0),
+		Length: proto.Uint64(uint64(f.info.Size())),
+	}
+	resp := &hdfs.GetBlockLocationsResponseProto{}
+
+	err := f.client.namenode.Execute("getBlockLocations", req, resp)
+	if err != nil {
+		return nil, err
+	}
+
+	//f.blocks = resp.GetLocations().GetBlocks()
+	blocks := resp.GetLocations().GetBlocks()
+	return blocks, nil
+}
+
 func (f *FileReader) getBlocks() error {
 	req := &hdfs.GetBlockLocationsRequestProto{
 		Src:    proto.String(f.name),
