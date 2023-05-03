@@ -21,14 +21,20 @@ type FileReader struct {
 	name   string
 	info   os.FileInfo
 
-	blocks      []*hdfs.LocatedBlockProto
-	blockReader *transfer.BlockReader
-	deadline    time.Time
-	offset      int64
+	blocks         []*hdfs.LocatedBlockProto
+	ExportedBlocks []*hdfs.LocatedBlockProto
+	blockReader    *transfer.BlockReader
+	deadline       time.Time
+	offset         int64
 
 	readdirLast string
 
 	closed bool
+}
+
+type BlockInfo struct {
+	BlockId *uint64
+	IpAddr  []string
 }
 
 // Open returns an FileReader which can be used for reading.
@@ -37,8 +43,6 @@ func (c *Client) Open(name string) (*FileReader, error) {
 	if err != nil {
 		return nil, &os.PathError{"open", name, interpretException(err)}
 	}
-
-	fmt.Println("Open", name, info)
 
 	return &FileReader{
 		client: c,
@@ -398,7 +402,7 @@ func (f *FileReader) Close() error {
 	return nil
 }
 
-func (f *FileReader) GetBlocks() ([]*hdfs.LocatedBlockProto, error) {
+func (f *FileReader) GetBlocks() ([]BlockInfo, error) {
 	req := &hdfs.GetBlockLocationsRequestProto{
 		Src:    proto.String(f.name),
 		Offset: proto.Uint64(0),
@@ -413,7 +417,17 @@ func (f *FileReader) GetBlocks() ([]*hdfs.LocatedBlockProto, error) {
 
 	//f.blocks = resp.GetLocations().GetBlocks()
 	blocks := resp.GetLocations().GetBlocks()
-	return blocks, nil
+	infos := make([]BlockInfo, 0)
+
+	for _, block := range blocks {
+		ips := make([]string, 0)
+		for _, loc := range block.Locs {
+			ips = append(ips, loc.GetId().GetIpAddr())
+		}
+		infos = append(infos, BlockInfo{block.B.BlockId, ips})
+	}
+
+	return infos, nil
 }
 
 func (f *FileReader) getBlocks() error {
