@@ -33,7 +33,8 @@ type FileReader struct {
 }
 
 type BlockInfo struct {
-	BlockId *uint64
+	BlockId uint64
+	NumBytes uint64
 	IpAddr  []string
 }
 
@@ -266,6 +267,60 @@ func (f *FileReader) ReadAt(b []byte, off int64) (int, error) {
 	return n, err
 }
 
+func (f *FileReader) ReadBlockLines(Id uint64, IpSet *[]string, b []byte) (int, error) {
+	var findedBlock *hdfs.LocatedBlockProto
+	var blockReader *transfer.BlockReader
+	off := uint64(f.offset)
+
+	for _, block := range f.blocks {
+		if block.GetB().GetBlockId() == Id {
+			findedBlock = block
+		}
+	}
+
+	if findedBlock == nil {
+		return 0, fmt.Errorf("block %d not found", Id)
+	}
+
+	start := findedBlock.GetOffset()
+	end := start + findedBlock.GetB().GetNumBytes()
+
+	if start <= off && off < end {
+		dialFunc, err := f.client.wrapDatanodeDial(
+			f.client.options.DatanodeDialFunc,
+			findedBlock.GetBlockToken())
+		if err != nil {
+			return 0, err
+		}
+
+		blockReader = &transfer.BlockReader{
+			ClientName:          f.client.namenode.ClientName,
+			Block:               findedBlock,
+			Offset:              int64(off - start),
+			UseDatanodeHostname: f.client.options.UseDatanodeHostname,
+			DialFunc:            dialFunc,
+		}
+	}
+
+	if blockReader == nil {
+		return 0, fmt.Errorf("block %d not found", Id)
+	}
+
+	n, err := blockReader.Read(b)
+
+	if err != nil && err != io.EOF {
+		blockReader.Close()
+		blockReader = nil
+		return n, err
+	} else if n > 0 {
+		return n, nil
+	}
+
+	err = blockReader.Close()
+	blockReader = nil
+	return n, err
+}
+
 // Readdir reads the contents of the directory associated with file and returns
 // a slice of up to n os.FileInfo values, as would be returned by Stat, in
 // directory order. Subsequent calls on the same file will yield further
@@ -424,7 +479,7 @@ func (f *FileReader) GetBlocks() ([]BlockInfo, error) {
 		for _, loc := range block.Locs {
 			ips = append(ips, loc.GetId().GetIpAddr())
 		}
-		infos = append(infos, BlockInfo{block.B.BlockId, ips})
+		infos = append(infos, BlockInfo{block.GetB().GetBlockId(), block.GetB().GetNumBytes(), ips})
 	}
 
 	return infos, nil
