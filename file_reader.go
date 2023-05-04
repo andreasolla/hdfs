@@ -33,6 +33,8 @@ type FileReader struct {
 	closed bool
 }
 
+// BlockInfo is a struct that contains the block id, number of bytes, and
+// the ip addresses of the datanodes that hold the block.
 type BlockInfo struct {
 	BlockId  uint64
 	NumBytes uint64
@@ -280,8 +282,8 @@ func (f *FileReader) ReadAt(b []byte, off int64) (int, error) {
 	return n, err
 }
 
-// ReadAt implements io.ReaderAt.
-func (f *FileReader) ReadLine(b []byte, off int64) (string, error) {
+// ReadLine reads a line of text from the file starting at the given offset.
+func (f *FileReader) ReadLine(off int64) (string, error) {
 	if f.closed {
 		return "", io.ErrClosedPipe
 	}
@@ -295,18 +297,11 @@ func (f *FileReader) ReadLine(b []byte, off int64) (string, error) {
 		return "", err
 	}
 
-	//n, err := io.ReadFull(f, b)
 	scanner := bufio.NewScanner(f)
 	scanner.Scan()
 	line := scanner.Text()
 
-	// For some reason, os.File.ReadAt returns io.EOF in this case instead of
-	// io.ErrUnexpectedEOF.
-	if err == io.ErrUnexpectedEOF {
-		err = io.EOF
-	}
-
-	return line, err
+	return line, nil
 }
 
 // Readdir reads the contents of the directory associated with file and returns
@@ -445,6 +440,7 @@ func (f *FileReader) Close() error {
 	return nil
 }
 
+// GetBlocks returns the locations of the blocks in hdfs and their sizes.
 func (f *FileReader) GetBlocks() ([]BlockInfo, error) {
 	req := &hdfs.GetBlockLocationsRequestProto{
 		Src:    proto.String(f.name),
@@ -458,7 +454,6 @@ func (f *FileReader) GetBlocks() ([]BlockInfo, error) {
 		return nil, err
 	}
 
-	//f.blocks = resp.GetLocations().GetBlocks()
 	blocks := resp.GetLocations().GetBlocks()
 	infos := make([]BlockInfo, 0)
 
