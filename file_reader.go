@@ -38,6 +38,18 @@ type BlockInfo struct {
 	IpAddr  []string
 }
 
+func (bi BlockInfo) GetNumBytes() uint64 {
+	return bi.NumBytes
+}
+
+func (bi BlockInfo) GetBlockId() uint64 {
+	return bi.BlockId
+}
+
+func (bi BlockInfo) GetIpAddr() []string {
+	return bi.IpAddr
+}
+
 // Open returns an FileReader which can be used for reading.
 func (c *Client) Open(name string) (*FileReader, error) {
 	info, err := c.getFileInfo(name)
