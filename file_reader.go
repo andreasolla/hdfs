@@ -1,6 +1,7 @@
 package hdfs
 
 import (
+	"bufio"
 	"crypto/md5"
 	"errors"
 	"fmt"
@@ -33,9 +34,9 @@ type FileReader struct {
 }
 
 type BlockInfo struct {
-	BlockId uint64
+	BlockId  uint64
 	NumBytes uint64
-	IpAddr  []string
+	IpAddr   []string
 }
 
 func (bi BlockInfo) GetNumBytes() uint64 {
@@ -279,58 +280,33 @@ func (f *FileReader) ReadAt(b []byte, off int64) (int, error) {
 	return n, err
 }
 
-func (f *FileReader) ReadBlockLines(Id uint64, IpSet *[]string, b []byte) (int, error) {
-	var findedBlock *hdfs.LocatedBlockProto
-	var blockReader *transfer.BlockReader
-	off := uint64(f.offset)
-
-	for _, block := range f.blocks {
-		if block.GetB().GetBlockId() == Id {
-			findedBlock = block
-		}
+// ReadAt implements io.ReaderAt.
+func (f *FileReader) ReadLine(b []byte, off int64) (string, error) {
+	if f.closed {
+		return 0, io.ErrClosedPipe
 	}
 
-	if findedBlock == nil {
-		return 0, fmt.Errorf("block %d not found", Id)
+	if off < 0 {
+		return 0, &os.PathError{"readat", f.name, errors.New("negative offset")}
 	}
 
-	start := findedBlock.GetOffset()
-	end := start + findedBlock.GetB().GetNumBytes()
-
-	if start <= off && off < end {
-		dialFunc, err := f.client.wrapDatanodeDial(
-			f.client.options.DatanodeDialFunc,
-			findedBlock.GetBlockToken())
-		if err != nil {
-			return 0, err
-		}
-
-		blockReader = &transfer.BlockReader{
-			ClientName:          f.client.namenode.ClientName,
-			Block:               findedBlock,
-			Offset:              int64(off - start),
-			UseDatanodeHostname: f.client.options.UseDatanodeHostname,
-			DialFunc:            dialFunc,
-		}
+	_, err := f.Seek(off, 0)
+	if err != nil {
+		return 0, err
 	}
 
-	if blockReader == nil {
-		return 0, fmt.Errorf("block %d not found", Id)
+	//n, err := io.ReadFull(f, b)
+	scanner := bufio.NewScanner(f)
+	scanner.Scan()
+	line := scanner.Text()
+
+	// For some reason, os.File.ReadAt returns io.EOF in this case instead of
+	// io.ErrUnexpectedEOF.
+	if err == io.ErrUnexpectedEOF {
+		err = io.EOF
 	}
 
-	n, err := blockReader.Read(b)
-
-	if err != nil && err != io.EOF {
-		blockReader.Close()
-		blockReader = nil
-		return n, err
-	} else if n > 0 {
-		return n, nil
-	}
-
-	err = blockReader.Close()
-	blockReader = nil
-	return n, err
+	return line, err
 }
 
 // Readdir reads the contents of the directory associated with file and returns
