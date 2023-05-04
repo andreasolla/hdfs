@@ -283,16 +283,16 @@ func (f *FileReader) ReadAt(b []byte, off int64) (int, error) {
 // ReadAt implements io.ReaderAt.
 func (f *FileReader) ReadLine(b []byte, off int64) (string, error) {
 	if f.closed {
-		return 0, io.ErrClosedPipe
+		return "", io.ErrClosedPipe
 	}
 
 	if off < 0 {
-		return 0, &os.PathError{"readat", f.name, errors.New("negative offset")}
+		return "", &os.PathError{"readat", f.name, errors.New("negative offset")}
 	}
 
 	_, err := f.Seek(off, 0)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
 	//n, err := io.ReadFull(f, b)
