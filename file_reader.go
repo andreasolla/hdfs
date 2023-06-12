@@ -28,6 +28,7 @@ type FileReader struct {
 	deadline       time.Time
 	offset         int64
 
+	reader      *bufio.Reader
 	readdirLast string
 
 	closed bool
@@ -297,9 +298,15 @@ func (f *FileReader) ReadLine(off int64) (string, error) {
 		return "", err
 	}
 
-	scanner := bufio.NewScanner(f)
-	scanner.Scan()
-	line := scanner.Text()
+	if f.reader == nil {
+		f.reader = bufio.NewReader(f)
+	}
+
+	l, err := f.reader.ReadBytes('\n')
+	if err != nil {
+		return "", err
+	}
+	line := string(l)
 
 	return line, nil
 }
